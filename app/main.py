@@ -61,6 +61,65 @@ async def list_syncs(db: AsyncSession = Depends(get_db)):
         for config in configs
     ]
 
+@app.post("/manual-sync")
+async def manual_sync(db: AsyncSession = Depends(get_db)):
+    """Trigger manual sync for all configurations"""
+    try:
+        result = await db.execute(select(SyncConfig))
+        configs = result.scalars().all()
+        
+        sync_results = []
+        for config in configs:
+            try:
+                # Trigger both directions of sync
+                await sync_service._sync_sheet_to_db(config)
+                await sync_service._sync_db_to_sheet(config)
+                sync_results.append({"config_id": config.id, "status": "success"})
+            except Exception as e:
+                sync_results.append({"config_id": config.id, "status": "error", "error": str(e)})
+        
+        return {"message": "Manual sync completed", "results": sync_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/sync-sheet-to-db")
+async def sync_sheet_to_db(db: AsyncSession = Depends(get_db)):
+    """Sync Google Sheet → Database only"""
+    try:
+        result = await db.execute(select(SyncConfig))
+        configs = result.scalars().all()
+        
+        sync_results = []
+        for config in configs:
+            try:
+                await sync_service._sync_sheet_to_db(config)
+                sync_results.append({"config_id": config.id, "status": "success", "direction": "Sheet → DB"})
+            except Exception as e:
+                sync_results.append({"config_id": config.id, "status": "error", "error": str(e)})
+        
+        return {"message": "Sheet → Database sync completed", "results": sync_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/sync-db-to-sheet")
+async def sync_db_to_sheet(db: AsyncSession = Depends(get_db)):
+    """Sync Database → Google Sheet only"""
+    try:
+        result = await db.execute(select(SyncConfig))
+        configs = result.scalars().all()
+        
+        sync_results = []
+        for config in configs:
+            try:
+                await sync_service._sync_db_to_sheet(config)
+                sync_results.append({"config_id": config.id, "status": "success", "direction": "DB → Sheet"})
+            except Exception as e:
+                sync_results.append({"config_id": config.id, "status": "error", "error": str(e)})
+        
+        return {"message": "Database → Sheet sync completed", "results": sync_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 interface SyncConfig {
   id: string;
   sheet_id: string;
   sheet_name: string;
   table_name: string;
-  column_mapping: Record<string, string>;
   is_active: boolean;
   created_at: string;
 }
@@ -14,223 +14,140 @@ interface SyncMonitorProps {
   config: SyncConfig;
 }
 
-interface SyncUpdate {
-  type: string;
-  source?: string;
-  rows_updated?: number;
-  timestamp: string;
-  message?: string;
-}
+const API_BASE = "http://localhost:8000";
 
 export default function SyncMonitor({ config }: SyncMonitorProps) {
-  const [updates, setUpdates] = useState<SyncUpdate[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<
-    "connecting" | "connected" | "disconnected"
-  >("connecting");
-  const [logs, setLogs] = useState<any[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string>("idle");
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [syncCount, setSyncCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Connect to WebSocket
-    const connectWebSocket = () => {
-      const wsUrl = `ws://localhost:8000/api/sync/ws/${config.id}`;
-      const ws = new WebSocket(wsUrl);
+  const triggerSync = async () => {
+    setSyncStatus("syncing");
+    setError(null);
 
-      ws.onopen = () => {
-        setConnectionStatus("connected");
-        console.log("WebSocket connected");
-      };
+    try {
+      const response = await axios.post(`${API_BASE}/manual-sync`);
+      setSyncStatus("success");
+      setLastSync(new Date());
+      setSyncCount((prev) => prev + 1);
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setUpdates((prev) => [data, ...prev.slice(0, 49)]); // Keep last 50 updates
-        } catch (err) {
-          console.error("Error parsing WebSocket message:", err);
-        }
-      };
+      // Reset status after 3 seconds
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (err: any) {
+      setSyncStatus("error");
+      setError(err.response?.data?.detail || "Sync failed");
 
-      ws.onclose = () => {
-        setConnectionStatus("disconnected");
-        console.log("WebSocket disconnected");
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setConnectionStatus("disconnected");
-      };
-
-      wsRef.current = ws;
-    };
-
-    connectWebSocket();
-
-    // Fetch sync logs
-    const fetchLogs = async () => {
-      try {
-        const response = await fetch(
-          `/api/sync/configurations/${config.id}/logs`
-        );
-        const logsData = await response.json();
-        setLogs(logsData);
-      } catch (err) {
-        console.error("Error fetching logs:", err);
-      }
-    };
-
-    fetchLogs();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [config.id]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "connected":
-        return "text-green-600";
-      case "connecting":
-        return "text-yellow-600";
-      case "disconnected":
-        return "text-red-600";
-      default:
-        return "text-gray-600";
+      // Reset status after 5 seconds
+      setTimeout(() => setSyncStatus("idle"), 5000);
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "connected":
-        return "🟢";
-      case "connecting":
-        return "🟡";
-      case "disconnected":
-        return "🔴";
+  const getStatusColor = () => {
+    switch (syncStatus) {
+      case "syncing":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "success":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "error":
+        return "bg-red-100 text-red-800 border-red-200";
       default:
-        return "⚪";
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (syncStatus) {
+      case "syncing":
+        return "🔄";
+      case "success":
+        return "✅";
+      case "error":
+        return "❌";
+      default:
+        return "⏸️";
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Connection Status */}
+      {/* Config Details */}
       <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-900">
-            Connection Status
-          </h3>
-          <div
-            className={`flex items-center space-x-2 ${getStatusColor(
-              connectionStatus
-            )}`}
-          >
-            <span>{getStatusIcon(connectionStatus)}</span>
-            <span className="text-sm font-medium capitalize">
-              {connectionStatus}
+        <h3 className="font-medium text-gray-900 mb-2">
+          Configuration Details
+        </h3>
+        <div className="space-y-1 text-sm">
+          <div>
+            <span className="font-medium">Sheet:</span> {config.sheet_name}
+          </div>
+          <div>
+            <span className="font-medium">Table:</span> {config.table_name}
+          </div>
+          <div>
+            <span className="font-medium">Status:</span>
+            <span
+              className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                config.is_active
+                  ? "bg-green-100 text-green-800"
+                  : "bg-red-100 text-red-800"
+              }`}
+            >
+              {config.is_active ? "Active" : "Inactive"}
             </span>
           </div>
         </div>
-        <div className="mt-2 text-sm text-gray-600">
-          <p>Sheet: {config.sheet_name}</p>
-          <p>Table: {config.table_name}</p>
+      </div>
+
+      {/* Sync Status */}
+      <div className={`border rounded-lg p-4 ${getStatusColor()}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">{getStatusIcon()}</span>
+            <span className="font-medium capitalize">{syncStatus}</span>
+          </div>
+          {syncStatus === "syncing" && (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+          )}
+        </div>
+
+        {error && <div className="mt-2 text-sm">{error}</div>}
+      </div>
+
+      {/* Sync Statistics */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-blue-50 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-blue-600">{syncCount}</div>
+          <div className="text-sm text-blue-800">Manual Syncs</div>
+        </div>
+        <div className="bg-purple-50 rounded-lg p-4 text-center">
+          <div className="text-lg font-medium text-purple-600">
+            {lastSync ? lastSync.toLocaleTimeString() : "Never"}
+          </div>
+          <div className="text-sm text-purple-800">Last Sync</div>
         </div>
       </div>
 
-      {/* Real-time Updates */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 mb-3">
-          Real-time Updates
-        </h3>
-        <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-          {updates.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No updates yet. Make changes to your sheet or database to see
-              real-time sync.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {updates.map((update, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded p-3 border-l-4 border-blue-400"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">
-                      {update.type === "sync_update"
-                        ? "Sync Update"
-                        : update.type}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(update.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  {update.source && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      Source: {update.source} • Rows: {update.rows_updated || 0}
-                    </p>
-                  )}
-                  {update.message && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      {update.message}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Manual Sync Button */}
+      <button
+        onClick={triggerSync}
+        disabled={syncStatus === "syncing"}
+        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {syncStatus === "syncing" ? "Syncing..." : "🔄 Trigger Manual Sync"}
+      </button>
 
-      {/* Sync Logs */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 mb-3">
-          Recent Sync Logs
-        </h3>
-        <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-          {logs.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No sync logs available
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {logs.map((log) => (
-                <div key={log.id} className="bg-white rounded p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          log.status === "SUCCESS"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {log.status}
-                      </span>
-                      <span className="text-sm text-gray-900">
-                        {log.operation_type}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        from {log.source}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  {log.error_message && (
-                    <p className="text-sm text-red-600 mt-2">
-                      {log.error_message}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Instructions */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h4 className="font-medium text-yellow-800 mb-2">
+          Testing Instructions:
+        </h4>
+        <ol className="text-sm text-yellow-700 space-y-1 list-decimal list-inside">
+          <li>Edit your Google Sheet and add/modify data</li>
+          <li>Click "Trigger Manual Sync" to sync changes</li>
+          <li>Open DB Browser for SQLite to view database changes</li>
+          <li>Edit data in DB Browser and sync again</li>
+          <li>Check Google Sheet for updated data</li>
+        </ol>
       </div>
     </div>
   );

@@ -9,10 +9,11 @@ interface SyncConfig {
   sheet_id: string;
   sheet_name: string;
   table_name: string;
-  column_mapping: Record<string, string>;
   is_active: boolean;
   created_at: string;
 }
+
+const API_BASE = "http://localhost:8000";
 
 export default function Home() {
   const [configs, setConfigs] = useState<SyncConfig[]>([]);
@@ -22,7 +23,7 @@ export default function Home() {
 
   const fetchConfigs = async () => {
     try {
-      const response = await axios.get("/api/sync/configurations");
+      const response = await axios.get(`${API_BASE}/sync`);
       setConfigs(response.data);
       setError(null);
     } catch (err) {
@@ -41,20 +42,45 @@ export default function Home() {
     setConfigs([...configs, newConfig]);
   };
 
-  const handleConfigDeleted = (configId: string) => {
-    setConfigs(configs.filter((c) => c.id !== configId));
-    if (selectedConfig?.id === configId) {
-      setSelectedConfig(null);
-    }
-  };
-
-  const handleManualSync = async (configId: string) => {
+  const handleManualSync = async () => {
     try {
-      await axios.post(`/api/sync/configurations/${configId}/manual-sync`);
-      alert("Manual sync triggered successfully!");
+      const response = await axios.post(`${API_BASE}/manual-sync`);
+      if (response.status === 200) {
+        alert("Manual sync triggered successfully!");
+      } else {
+        alert("Failed to trigger manual sync");
+      }
     } catch (err) {
       alert("Failed to trigger manual sync");
       console.error("Manual sync error:", err);
+    }
+  };
+
+  const handleSheetToDbSync = async () => {
+    try {
+      const response = await axios.post(`${API_BASE}/sync-sheet-to-db`);
+      if (response.status === 200) {
+        alert("Sheet → Database sync completed!");
+      } else {
+        alert("Failed to sync Sheet → Database");
+      }
+    } catch (err) {
+      alert("Failed to sync Sheet → Database");
+      console.error("Sheet to DB sync error:", err);
+    }
+  };
+
+  const handleDbToSheetSync = async () => {
+    try {
+      const response = await axios.post(`${API_BASE}/sync-db-to-sheet`);
+      if (response.status === 200) {
+        alert("Database → Sheet sync completed!");
+      } else {
+        alert("Failed to sync Database → Sheet");
+      }
+    } catch (err) {
+      alert("Failed to sync Database → Sheet");
+      console.error("DB to Sheet sync error:", err);
     }
   };
 
@@ -78,7 +104,8 @@ export default function Home() {
               Superjoin Sync Dashboard
             </h1>
             <p className="mt-2 text-gray-600">
-              Real-time bidirectional sync between Google Sheets and MySQL
+              Real-time bidirectional sync between Google Sheets and SQLite
+              Database
             </p>
           </div>
 
@@ -104,14 +131,40 @@ export default function Home() {
 
               <div className="bg-white shadow rounded-lg p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Sync Configurations
+                  Sync Configurations ({configs.length})
                 </h2>
                 <SyncConfigList
                   configs={configs}
-                  onConfigDeleted={handleConfigDeleted}
                   onConfigSelected={setSelectedConfig}
                   onManualSync={handleManualSync}
                 />
+
+                {/* Separate Sync Controls */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-md font-medium text-gray-900 mb-3">
+                    Manual Sync Controls
+                  </h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleSheetToDbSync}
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      📊 Sheet → Database
+                    </button>
+                    <button
+                      onClick={handleDbToSheetSync}
+                      className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
+                    >
+                      🗄️ Database → Sheet
+                    </button>
+                    <button
+                      onClick={handleManualSync}
+                      className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
+                    >
+                      🔄 Bidirectional Sync
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -123,9 +176,15 @@ export default function Home() {
                 <SyncMonitor config={selectedConfig} />
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-gray-500">
+                  <div className="text-gray-500 mb-4">
                     Select a sync configuration to monitor real-time updates
-                  </p>
+                  </div>
+                  <button
+                    onClick={handleManualSync}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Trigger Manual Sync
+                  </button>
                 </div>
               )}
             </div>

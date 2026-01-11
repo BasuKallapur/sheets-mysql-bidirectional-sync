@@ -5,14 +5,21 @@ interface SyncConfigFormProps {
   onConfigCreated: (config: any) => void;
 }
 
+const API_BASE = "http://localhost:8000";
+
 export default function SyncConfigForm({
   onConfigCreated,
 }: SyncConfigFormProps) {
   const [formData, setFormData] = useState({
-    sheet_id: "",
-    sheet_name: "",
-    table_name: "",
-    column_mapping: "{}",
+    sheet_id: "1ivhwRAxn5gTKlY8em_H19gP9cFD1X0WwJZ6po0cWrZI",
+    sheet_name: "Sheet1",
+    table_name: "employees",
+    column_mapping: {
+      Name: "name",
+      Email: "email",
+      Age: "age",
+      City: "city",
+    },
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,146 +30,137 @@ export default function SyncConfigForm({
     setError(null);
 
     try {
-      // Parse column mapping
-      let columnMapping = {};
-      try {
-        columnMapping = JSON.parse(formData.column_mapping);
-      } catch {
-        throw new Error("Invalid JSON in column mapping");
-      }
-
-      const payload = {
-        sheet_id: formData.sheet_id,
-        sheet_name: formData.sheet_name,
-        table_name: formData.table_name,
-        column_mapping: columnMapping,
-      };
-
-      const response = await axios.post("/api/sync/configurations", payload);
+      const response = await axios.post(`${API_BASE}/sync`, formData);
       onConfigCreated(response.data);
-
-      // Reset form
-      setFormData({
-        sheet_id: "",
-        sheet_name: "",
-        table_name: "",
-        column_mapping: "{}",
-      });
-
       alert("Sync configuration created successfully!");
     } catch (err: any) {
       setError(
-        err.response?.data?.detail ||
-          err.message ||
-          "Failed to create configuration"
+        err.response?.data?.detail || "Failed to create sync configuration"
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleColumnMappingChange = (sheetCol: string, dbCol: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      column_mapping: {
+        ...prev.column_mapping,
+        [sheetCol]: dbCol,
+      },
+    }));
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-600">{error}</p>
         </div>
       )}
 
       <div>
-        <label
-          htmlFor="sheet_id"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label className="block text-sm font-medium text-gray-700">
           Google Sheet ID
         </label>
         <input
           type="text"
-          name="sheet_id"
-          id="sheet_id"
-          required
           value={formData.sheet_id}
-          onChange={handleInputChange}
-          placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, sheet_id: e.target.value }))
+          }
+          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="1ivhwRAxn5gTKlY8em_H19gP9cFD1X0WwJZ6po0cWrZI"
+          required
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Extract from the Google Sheet URL
-        </p>
       </div>
 
       <div>
-        <label
-          htmlFor="sheet_name"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label className="block text-sm font-medium text-gray-700">
           Sheet Name
         </label>
         <input
           type="text"
-          name="sheet_name"
-          id="sheet_name"
-          required
           value={formData.sheet_name}
-          onChange={handleInputChange}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, sheet_name: e.target.value }))
+          }
+          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Sheet1"
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+          required
         />
       </div>
 
       <div>
-        <label
-          htmlFor="table_name"
-          className="block text-sm font-medium text-gray-700"
-        >
-          MySQL Table Name
+        <label className="block text-sm font-medium text-gray-700">
+          Database Table Name
         </label>
         <input
           type="text"
-          name="table_name"
-          id="table_name"
-          required
           value={formData.table_name}
-          onChange={handleInputChange}
-          placeholder="my_data_table"
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, table_name: e.target.value }))
+          }
+          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="employees"
+          required
         />
       </div>
 
       <div>
-        <label
-          htmlFor="column_mapping"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Column Mapping (JSON)
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Column Mapping (Sheet → Database)
         </label>
-        <textarea
-          name="column_mapping"
-          id="column_mapping"
-          rows={4}
-          value={formData.column_mapping}
-          onChange={handleInputChange}
-          placeholder='{"Name": "name", "Email": "email", "Age": "age"}'
-          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          Map sheet column names to database column names
-        </p>
+        <div className="space-y-2">
+          {Object.entries(formData.column_mapping).map(([sheetCol, dbCol]) => (
+            <div key={sheetCol} className="flex space-x-2">
+              <input
+                type="text"
+                value={sheetCol}
+                onChange={(e) => {
+                  const newMapping = { ...formData.column_mapping };
+                  delete newMapping[sheetCol];
+                  newMapping[e.target.value] = dbCol;
+                  setFormData((prev) => ({
+                    ...prev,
+                    column_mapping: newMapping,
+                  }));
+                }}
+                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Sheet Column"
+              />
+              <span className="flex items-center text-gray-500">→</span>
+              <input
+                type="text"
+                value={dbCol}
+                onChange={(e) =>
+                  handleColumnMappingChange(sheetCol, e.target.value)
+                }
+                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="DB Column"
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const newKey = `Column${
+              Object.keys(formData.column_mapping).length + 1
+            }`;
+            handleColumnMappingChange(newKey, newKey.toLowerCase());
+          }}
+          className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+        >
+          + Add Column Mapping
+        </button>
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Creating..." : "Create Sync Configuration"}
       </button>
