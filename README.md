@@ -83,7 +83,7 @@ npm run dev
 
 ## 🔄 Testing the Sync
 
-### **Method 1: Web Dashboard**
+### **Method 1: Web Dashboard (Localhost)**
 
 1. Open http://localhost:3000
 2. View existing sync configurations
@@ -110,12 +110,6 @@ python validate_submission.py
 3. **Check database** → Use MySQL Workbench to view `superjoin_sync` database
 4. **Edit database** → Modify records in MySQL Workbench
 5. **Run sync again** → Changes sync back to Google Sheet
-
-### **Method 3: Automated Tests**
-
-```bash
-python test_complete_system.py
-```
 
 ## 📊 Current Demo Configuration
 
@@ -256,7 +250,7 @@ GOOGLE_CREDENTIALS_FILE=credentials.json
 ├── quick_test.py            # Quick sync testing
 ├── validate_submission.py   # Final validation
 ├── requirements.txt         # Python dependencies
-├── superjoin_sync.db        # SQLite database
+├── superjoin_sync.db        # SQLite database (created automatically)
 └── credentials.json         # Google service account
 ```
 

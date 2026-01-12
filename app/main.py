@@ -120,6 +120,69 @@ async def sync_db_to_sheet(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/apps-script-sync")
+async def apps_script_sync(request: dict, db: AsyncSession = Depends(get_db)):
+    """Handle sync requests from Google Apps Script"""
+    try:
+        sheet_id = request.get("sheet_id")
+        edit_info = request.get("edit_info", {})
+        trigger_source = request.get("trigger_source", "apps_script")
+        
+        # Find matching sync config
+        result = await db.execute(select(SyncConfig).where(SyncConfig.sheet_id == sheet_id))
+        config = result.scalar_one_or_none()
+        
+        if not config:
+            raise HTTPException(status_code=404, detail=f"No sync config found for sheet {sheet_id}")
+        
+        # Log the Apps Script trigger
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Apps Script sync triggered: {edit_info}")
+        
+        # Determine sync direction based on edit type
+        edit_type = edit_info.get("editType", "EDIT")
+        
+        if edit_type in ["EDIT", "STRUCTURE_CHANGE"]:
+            # Sheet was edited, sync Sheet → DB first, then DB → Sheet for consistency
+            await sync_service._sync_sheet_to_db(config)
+            # Small delay to ensure consistency
+            import asyncio
+            await asyncio.sleep(0.5)
+            await sync_service._sync_db_to_sheet(config)
+            
+        elif edit_type == "MANUAL":
+            # Manual trigger, do full bidirectional sync
+            await sync_service._sync_sheet_to_db(config)
+            await asyncio.sleep(0.5)
+            await sync_service._sync_db_to_sheet(config)
+        
+        return {
+            "message": "Apps Script sync completed successfully",
+            "config_id": config.id,
+            "edit_info": edit_info,
+            "sync_direction": "bidirectional",
+            "timestamp": request.get("timestamp")
+        }
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Apps Script sync failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Apps Script testing"""
+    return {
+        "status": "healthy",
+        "service": "Superjoin Sync API",
+        "timestamp": "2024-01-12T00:00:00Z",
+        "apps_script_ready": True
+    }
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
