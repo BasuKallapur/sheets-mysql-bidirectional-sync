@@ -3,6 +3,7 @@ import axios from "axios";
 import SyncConfigForm from "../components/SyncConfigForm";
 import SyncConfigList from "../components/SyncConfigList";
 import SyncMonitor from "../components/SyncMonitor";
+import AppsScriptIntegration from "../components/AppsScriptIntegration";
 
 interface SyncConfig {
   id: string;
@@ -20,6 +21,9 @@ export default function Home() {
   const [selectedConfig, setSelectedConfig] = useState<SyncConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "apps-script">(
+    "dashboard"
+  );
 
   const fetchConfigs = async () => {
     try {
@@ -104,9 +108,35 @@ export default function Home() {
               Superjoin Sync Dashboard
             </h1>
             <p className="mt-2 text-gray-600">
-              Real-time bidirectional sync between Google Sheets and SQLite
-              Database
+              Real-time bidirectional sync between Google Sheets and MySQL
+              Database with Apps Script Integration
             </p>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="mb-6">
+            <nav className="flex space-x-8">
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "dashboard"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                📊 Sync Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab("apps-script")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "apps-script"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                🚀 Apps Script Integration
+              </button>
+            </nav>
           </div>
 
           {error && (
@@ -120,75 +150,82 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Create New Sync Configuration
-                </h2>
-                <SyncConfigForm onConfigCreated={handleConfigCreated} />
+          {/* Tab Content */}
+          {activeTab === "dashboard" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="bg-white shadow rounded-lg p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Create New Sync Configuration
+                  </h2>
+                  <SyncConfigForm onConfigCreated={handleConfigCreated} />
+                </div>
+
+                <div className="bg-white shadow rounded-lg p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Sync Configurations ({configs.length})
+                  </h2>
+                  <SyncConfigList
+                    configs={configs}
+                    onConfigSelected={setSelectedConfig}
+                    onManualSync={handleManualSync}
+                  />
+
+                  {/* Separate Sync Controls */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-md font-medium text-gray-900 mb-3">
+                      Manual Sync Controls
+                    </h3>
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleSheetToDbSync}
+                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
+                      >
+                        📊 Sheet → Database
+                      </button>
+                      <button
+                        onClick={handleDbToSheetSync}
+                        className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
+                      >
+                        🗄️ Database → Sheet
+                      </button>
+                      <button
+                        onClick={handleManualSync}
+                        className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
+                      >
+                        🔄 Bidirectional Sync
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="bg-white shadow rounded-lg p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Sync Configurations ({configs.length})
+                  Real-time Sync Monitor
                 </h2>
-                <SyncConfigList
-                  configs={configs}
-                  onConfigSelected={setSelectedConfig}
-                  onManualSync={handleManualSync}
-                />
-
-                {/* Separate Sync Controls */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="text-md font-medium text-gray-900 mb-3">
-                    Manual Sync Controls
-                  </h3>
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleSheetToDbSync}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm"
-                    >
-                      📊 Sheet → Database
-                    </button>
-                    <button
-                      onClick={handleDbToSheetSync}
-                      className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm"
-                    >
-                      🗄️ Database → Sheet
-                    </button>
+                {selectedConfig ? (
+                  <SyncMonitor config={selectedConfig} />
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="text-gray-500 mb-4">
+                      Select a sync configuration to monitor real-time updates
+                    </div>
                     <button
                       onClick={handleManualSync}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                     >
-                      🔄 Bidirectional Sync
+                      Trigger Manual Sync
                     </button>
                   </div>
-                </div>
+                )}
               </div>
             </div>
+          )}
 
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                Real-time Sync Monitor
-              </h2>
-              {selectedConfig ? (
-                <SyncMonitor config={selectedConfig} />
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-500 mb-4">
-                    Select a sync configuration to monitor real-time updates
-                  </div>
-                  <button
-                    onClick={handleManualSync}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                  >
-                    Trigger Manual Sync
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          {activeTab === "apps-script" && (
+            <AppsScriptIntegration backendUrl={API_BASE} />
+          )}
         </div>
       </div>
     </div>

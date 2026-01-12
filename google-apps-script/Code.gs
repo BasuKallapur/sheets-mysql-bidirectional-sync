@@ -1,11 +1,13 @@
 /**
  * Complete Google Apps Script for Superjoin Real-time Sync
  * Copy this entire code to your Google Apps Script editor
+ *
+ * @OnlyCurrentDoc
  */
 
 // ⚠️ IMPORTANT: Update this URL with your deployed backend URL
 const CONFIG = {
-  BACKEND_URL: "https://superjoin-sync-production.railway.app", // ← YOUR ACTUAL URL!
+  BACKEND_URL: "https://lorrie-irreclaimable-willy.ngrok-free.dev", // ← UPDATED WITH YOUR NGROK URL!
   API_KEY: "", // Optional: add if you implement authentication
   SYNC_ENDPOINT: "/apps-script-sync",
   MAX_RETRIES: 3,
@@ -14,8 +16,9 @@ const CONFIG = {
 
 /**
  * Main trigger - fires when sheet is edited
+ * Renamed to work with installable triggers
  */
-function onEdit(e) {
+function onEditHandler(e) {
   console.log("Sheet edited, triggering real-time sync...");
 
   try {
@@ -32,7 +35,7 @@ function onEdit(e) {
     console.log("Edit details:", editInfo);
     triggerSyncWithRetry(editInfo);
   } catch (error) {
-    console.error("Error in onEdit:", error);
+    console.error("Error in onEditHandler:", error);
     showNotification("❌ Sync error: " + error.toString());
   }
 }
@@ -60,6 +63,7 @@ function triggerSyncWithRetry(editInfo, retryCount = 0) {
         headers: {
           "Content-Type": "application/json",
           "User-Agent": "GoogleAppsScript-SuperjoinSync/1.0",
+          "ngrok-skip-browser-warning": "true",
         },
         payload: JSON.stringify(payload),
         muteHttpExceptions: true,
@@ -119,6 +123,10 @@ function testConnection() {
   try {
     const response = UrlFetchApp.fetch(CONFIG.BACKEND_URL + "/health", {
       method: "GET",
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "GoogleAppsScript-SuperjoinSync/1.0",
+      },
       muteHttpExceptions: true,
     });
 
@@ -148,8 +156,10 @@ function setupTriggers() {
       ScriptApp.deleteTrigger(trigger);
     });
 
-    console.log("✅ Triggers setup completed");
-    showNotification("✅ Apps Script triggers installed successfully!");
+    console.log("✅ Triggers cleared - please set up manually");
+    showNotification(
+      "⚠️ Set up trigger manually: Triggers → Add → onEditHandler → On Edit"
+    );
   } catch (error) {
     console.error("❌ Failed to setup triggers:", error);
     showNotification("❌ Failed to setup triggers: " + error.toString());
